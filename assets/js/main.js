@@ -1,5 +1,10 @@
 (function ($) {
     'use strict';
+    
+    // To disable the right click on the portfolio
+    // $("body").on("contextmenu",function(e){
+    //     return false;
+    // });
 
     var imJs = {
         m: function (e) {
