@@ -11265,6 +11265,7 @@ body.template-color-1 {
   width: 80px;
   border-radius: 50%;
   border: 2px darkgray solid;
+  background: var(--color-secondary);
 }
 @media only screen and (max-width: 767px) {
   .logo img {
