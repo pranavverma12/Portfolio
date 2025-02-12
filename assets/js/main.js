@@ -1,5 +1,10 @@
 (function ($) {
     'use strict';
+    
+    // To disable the right click on the portfolio
+    // $("body").on("contextmenu",function(e){
+    //     return false;
+    // });
 
     var imJs = {
         m: function (e) {
@@ -17,6 +22,7 @@
         methods: function (e) {
             imJs.featherAtcivation();
             imJs.backToTopInit();
+            imJs.darkMode();
             imJs.mobileMenuActive();
             imJs.vedioActivation();
             imJs.stickyHeader();
@@ -430,6 +436,17 @@
                     // console.log(this);
                 }
             });
+        },
+
+        darkMode: function () {
+            // declare variable
+            var dark_mode = $('.dark-mode-btn');
+            
+            //Click event to scroll to top
+            $(dark_mode).on('click', function () {
+                $('body').toggleClass('white-version');
+            });
+
         },
 
     }
