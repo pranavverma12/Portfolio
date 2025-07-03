@@ -15911,7 +15911,8 @@ div#featured-project-carousel {
   display: block;
   font-size: 14px;
   padding: 0 15px;
-  height: 36px;
+  height: fit-content;
+  /* 36px */
   line-height: 36px;
   border-radius: 6px;
   background: var(--background-color-1);
