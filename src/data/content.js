@@ -12,7 +12,7 @@ export const profile = {
   phone: '+91 77289 91790',
   location: 'Bangalore, India',
   cv: '/docs/resume-pv.pdf',
-  photo: '/images/slider/banner-02.png',
+  photo: '/images/slider/banner-02.jpg',
   contactPhoto: '/images/contact/contact.jpg',
   socials: [
     { label: 'GitHub', href: 'https://github.com/pranavverma12/', icon: 'github' },
