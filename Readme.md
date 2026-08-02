@@ -24,6 +24,34 @@ npm run build    # production build into dist/
 npm run preview  # preview the production build locally
 ```
 
+## Deploy to Cloudflare Pages
+
+This project is prepared for direct deployment to Cloudflare Pages through GitHub Actions.
+
+### Required GitHub secrets
+
+Add these repository secrets in GitHub:
+
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
+
+### Cloudflare setup
+
+In Cloudflare Pages:
+
+1. Create a new Pages project.
+2. Connect it to this GitHub repository.
+3. Set the production branch to `main`.
+4. Use the following build settings:
+   - Build command: `npm run build`
+   - Build output directory: `dist`
+
+The deployed site will be available at:
+
+- `https://pranavverma.pages.dev`
+
+The workflow file is located at [.github/workflows/cloudflare-pages.yml](.github/workflows/cloudflare-pages.yml).
+
 ## Structure
 
 ```
@@ -67,6 +95,21 @@ src/
       ConstellationField.jsx  # Skills — quiet drifting stars
       MachineCosmos.jsx       # Products — robots/laptops/neural nets as constellations
       AtelierPages.jsx        # Research/Education/Certificates — "an AI reading"
+  lib/
+    useChat.js             # browser-side chat client (FP + localStorage)
+server/                  # Node/Express chat backend (Oracle ADB 23ai)
+  src/
+    index.js              # routes + middleware
+    config.js             # env loader
+    db.js                 # oracledb pool + vector/RAW helpers
+    embed.js              # Ouraniex gateway embeddings + chat completions
+    rag.js                # VECTOR_DISTANCE retrieval + refusal parser
+    sessions.js           # JSON-Collection session store
+    meta.js               # request → visitor metadata
+    ingest.js             # one-shot RAG ingestion from src/data/*
+  sql/
+    schema.sql            # JSON Collection + chat_messages + rag_chunks + vector index
+  .env.example            # all server env vars + safe defaults
 public/               # images + CV (resume-pv.pdf)
 legacy/               # the original static HTML site, kept for reference
 ```
@@ -115,6 +158,99 @@ in layers, vignetted so copy always wins, and honours `prefers-reduced-motion`.
   `y`/`x`; Framer's transform overwrites the class. Put the offset in `animate`.
 - `-webkit-background-clip: text` breaks (renders invisible) when combined with
   `text-shadow` on a Framer-animated element.
+
+## Ask Pranav — floating chat
+
+A neumorphic **chat assistant** sits just above the back-to-top button (bottom
+right). Click it to open a dialog where a visitor can ask up to **five
+questions** about Pranav. Answers are generated from the portfolio content via
+RAG, and off-topic questions are refused (with a gentle hint to ask about the
+portfolio instead). Off-topic refusals **still count** against the cap — this
+keeps the abuse surface small while letting the visitor steer the conversation.
+
+A counter pill on the button shows how many questions are left in the current
+session; the dialog footer mirrors it. When the cap is reached the composer
+disables and the visitor is offered a "Start a new session" button that mints a
+fresh browser identity.
+
+### Identity & visitor metadata
+
+Every session is keyed by **(browser fingerprint, IP)** and persisted along with
+the metadata we can collect without explicit consent:
+
+- browser, OS, device (`ua-parser-js` server-side from `User-Agent`)
+- preferred language & timezone (sent by the client at session start)
+- screen size + viewport (same)
+- IP address (from `X-Forwarded-For` / socket) — used as part of the soft cap
+- best-effort country/city from an optional geo provider (`GEO_PROVIDER_URL`,
+  off by default)
+
+The fingerprint is a UUID minted on first visit and stored in `localStorage`
+under `pv_chat_fp_v1`; clearing site data resets the cap.
+
+### Backend (Node/Express + Oracle 23ai)
+
+The chat is backed by a small Node service in `server/` that talks to **Oracle
+Autonomous Database 23ai** using its two MongoDB-replacement primitives:
+
+- **`chat_sessions`** is a **JSON Collection** (`CREATE TABLE chat_sessions JSON
+  COLLECTION;`) — the NoSQL/document store. Sessions are full JSON documents;
+  scalar fields we need to query on (fingerprint, IP, created_at) are mirrored
+  into `chat_sessions_index` so they can be indexed without losing the document
+  store semantics.
+- **`rag_chunks`** uses the native 23ai `VECTOR(384, FLOAT32)` type with an
+  `INMEMORY NEIGHBOR GRAPH` cosine index for similarity search.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET  /api/health` | liveness probe |
+| `POST /api/session` | mint/resume a chat session keyed by `(fingerprint, ip)` |
+| `GET  /api/session/:id/messages` | load full transcript |
+| `POST /api/chat` | send one question, get one answer + new counter |
+
+### Running the server locally
+
+```bash
+cd server
+cp .env.example .env       # then fill in DB + gateway credentials
+npm install
+npm run db:init            # one-time: apply server/sql/schema.sql to your ADB
+npm run ingest             # one-time: chunk src/data/*, embed, load rag_chunks
+npm run dev                # listens on PORT (default 8788)
+```
+
+The frontend picks the backend up via `VITE_CHAT_API` (defaults to
+`http://localhost:8788` in dev).
+
+### LLM gateway
+
+All LLM calls go through the **Ouraniex SDK gateway** with model aliases (per
+the ecosystem rule — never direct provider SDKs in this repo). Configure:
+
+- `OURANIEX_GATEWAY_URL` — gateway base URL
+- `OURANIEX_API_KEY`    — bearer token
+- `CHAT_MODEL_ALIAS`    — default `ouraniex-chat-small`
+- `EMBED_MODEL_ALIAS`   — default `ouraniex-embed-384`
+
+### Deploy the chat server to Render
+
+The chat server is a **separate Node service** from the static Cloudflare Pages
+build. Easiest path is [Render](https://render.com):
+
+1. Create a new **Web Service** from this repo (root = `server/`).
+2. Build command: `npm install`
+3. Start command: `npm start`
+4. Set the env vars from `server/.env.example` in the Render dashboard:
+   `PORT`, `NODE_ENV=production`, `ALLOWED_ORIGIN=https://pranavverma.pages.dev`,
+   `DB_USER`, `DB_PASSWORD`, `DB_WALLET_DIR`, `DB_WALLET_PASSWORD`,
+   `DB_CONNECT_STRING`, `OURANIEX_GATEWAY_URL`, `OURANIEX_API_KEY`,
+   `TRUST_PROXY=1`.
+5. Mount the **ADB wallet** as a secret file / disk — `DB_WALLET_DIR` must
+   point at the directory containing `tnsnames.ora`, `cwallet.sso`,
+   `ewallet.p12`, etc., and must be readable by the service user.
+
+After the service is live, set `VITE_CHAT_API` in the Cloudflare Pages
+environment to the Render URL and rebuild.
 
 ## Notes
 
