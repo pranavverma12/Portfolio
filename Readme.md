@@ -24,33 +24,21 @@ npm run build    # production build into dist/
 npm run preview  # preview the production build locally
 ```
 
-## Deploy to Cloudflare Pages
+## Deploy to Vercel
 
-This project is prepared for direct deployment to Cloudflare Pages through GitHub Actions.
+This project deploys to Vercel via its native Git integration — no workflow
+file needed, no secrets to add to GitHub.
 
-### Required GitHub secrets
+1. Go to [vercel.com/new](https://vercel.com/new) and import this repository.
+2. Vercel auto-detects **Framework Preset: Vite**; leave the defaults:
+   - Build command: `vite build`
+   - Output directory: `dist`
+   - Install command: `npm install`
+3. Click **Deploy**.
 
-Add these repository secrets in GitHub:
-
-- `CLOUDFLARE_API_TOKEN`
-- `CLOUDFLARE_ACCOUNT_ID`
-
-### Cloudflare setup
-
-In Cloudflare Pages:
-
-1. Create a new Pages project.
-2. Connect it to this GitHub repository.
-3. Set the production branch to `main`.
-4. Use the following build settings:
-   - Build command: `npm run build`
-   - Build output directory: `dist`
-
-The deployed site will be available at:
-
-- `https://pranavverma.pages.dev`
-
-The workflow file is located at [.github/workflows/cloudflare-pages.yml](.github/workflows/cloudflare-pages.yml).
+Every push to `main` triggers a production redeploy automatically; every PR
+gets its own preview URL. No CI file, no build secrets — Vercel builds
+straight from the repo.
 
 ## Structure
 
@@ -234,14 +222,16 @@ the ecosystem rule — never direct provider SDKs in this repo). Configure:
 
 ### Deploy the chat server to Render
 
-The chat server is a **separate Node service** from the static Cloudflare Pages
-build. Easiest path is [Render](https://render.com):
+The chat server is a **separate Node service** from the static Vercel
+frontend — it holds a persistent Oracle connection pool and mounts a wallet
+directory, which doesn't fit Vercel's serverless function model. Easiest path
+is [Render](https://render.com):
 
 1. Create a new **Web Service** from this repo (root = `server/`).
 2. Build command: `npm install`
 3. Start command: `npm start`
 4. Set the env vars from `server/.env.example` in the Render dashboard:
-   `PORT`, `NODE_ENV=production`, `ALLOWED_ORIGIN=https://pranavverma.pages.dev`,
+   `PORT`, `NODE_ENV=production`, `ALLOWED_ORIGIN=https://<your-vercel-domain>.vercel.app`,
    `DB_USER`, `DB_PASSWORD`, `DB_WALLET_DIR`, `DB_WALLET_PASSWORD`,
    `DB_CONNECT_STRING`, `OURANIEX_GATEWAY_URL`, `OURANIEX_API_KEY`,
    `TRUST_PROXY=1`.
@@ -249,8 +239,8 @@ build. Easiest path is [Render](https://render.com):
    point at the directory containing `tnsnames.ora`, `cwallet.sso`,
    `ewallet.p12`, etc., and must be readable by the service user.
 
-After the service is live, set `VITE_CHAT_API` in the Cloudflare Pages
-environment to the Render URL and rebuild.
+After the service is live, set `VITE_CHAT_API` as an environment variable in
+the Vercel project settings to the Render URL and redeploy.
 
 ## Notes
 
